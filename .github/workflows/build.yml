@@ -71,6 +71,12 @@ jobs:
         with:
           workspaces: apd
           cache-targets: false
+      - name: Upload elf
+        uses: actions/upload-artifact@v3
+        with:
+          path: |
+            apd/*
+          name: kpimg.elf
 
       - name: Build with Gradle
         run: |
@@ -98,7 +104,7 @@ jobs:
       - name: Upload build artifact
         env: 
            SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-        if: ${{ env.SIGNING_KEY = '' }}
+        if: ${{ env.SIGNING_KEY != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: APatch
