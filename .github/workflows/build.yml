@@ -1,79 +1,36 @@
-name: Build Manager
-
+name: Build apd
 on:
-  push:
-    tags: [ "*" ]
-    branches: [ "main" ]
-    paths:
-      - '.github/workflows/build.yml'
-      - 'app/**'
-      - 'apd/**'
-      - 'build.gradle.kts'
-      - 'gradle/libs.versions.toml'
-  pull_request:
-    branches: [ "main" ]
-    paths:
-      - '.github/workflows/build.yml'
-      - 'app/**'
-      - 'apd/**'
-      - 'build.gradle.kts'
-      - 'gradle/libs.versions.toml'
   workflow_call:
-  workflow_dispatch:
-
+    inputs:
+      target:
+        required: true
+        type: string
+      use_cache:
+        required: false
+        type: boolean
+        default: true
 jobs:
-  build-manager:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Generate version
-        id: parse_version
-        run: |
-          COMMIT_NUM=$(git rev-list --count HEAD)
-          VERSION=$(echo "$COMMIT_NUM + 200 + 10000" | bc)
-          echo "Generated Version: $VERSION"
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-home-cache-cleanup: true
-
-      - name: Setup Android NDK
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r26d
-          add-to-path: true
-          local-cache: true
-
-      - name: Install toolchain
-        run: |
-          rustup default stable
-          rustup update stable
-          cargo install cargo-ndk
-          rustup target install aarch64-linux-android
-
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
+      # cross build failed after Rust 1.68, see https://github.com/cross-rs/cross/issues/1222
+      - run: rustup default 1.67.0
+      - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apd
           cache-targets: false
-      - name: Upload elf
+
+      - name: Install cross
+        run: cargo install cross --locked
+
+      - name: Build apd
+        run: cross build --target aarch64-linux-android --release --manifest-path ./apd/Cargo.toml
+
+      - name: Upload apd artifact
         uses: actions/upload-artifact@v3
         with:
-          path: |
-            /home/runner/.cargo
-          name: rust
+          name: apd-aarch64-linux-android
+          path: apd/target/**/release/apd
