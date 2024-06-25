@@ -1,4 +1,5 @@
-name: Build apd
+name: Build Manager
+
 on:
   push:
     tags: [ "*" ]
@@ -19,25 +20,58 @@ on:
       - 'gradle/libs.versions.toml'
   workflow_call:
   workflow_dispatch:
-  
+
 jobs:
-  build:
+  build-manager:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # cross build failed after Rust 1.68, see https://github.com/cross-rs/cross/issues/1222
-      - run: rustup default stable
-             rustup update stable
-             cargo install cargo-ndk
-             rustup target install aarch64-linux-android
-             
-      - uses: Swatinem/rust-cache@v2
+
+      - name: Generate version
+        id: parse_version
+        run: |
+          COMMIT_NUM=$(git rev-list --count HEAD)
+          VERSION=$(echo "$COMMIT_NUM + 200 + 10000" | bc)
+          echo "Generated Version: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-home-cache-cleanup: true
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26d
+          add-to-path: true
+          local-cache: true
+
+      - name: Install toolchain
+        run: |
+          rustup default stable
+          rustup update stable
+          cargo install cargo-ndk
+          rustup target install aarch64-linux-android
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: apd
           cache-targets: false
-
+          
       - name: Install cross
         run: cargo install cross --locked
 
